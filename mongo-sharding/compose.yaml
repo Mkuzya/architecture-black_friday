@@ -1,0 +1,71 @@
+name: mongo-sharding
+
+services:
+  # Конфигурационный сервер MongoDB
+  configSrv:
+    container_name: configSrv
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --configsvr --replSet configReplSet --port 27017 --bind_ip_all
+    volumes:
+      - configSrv_data:/data/db
+    ports:
+      - "27019:27017"
+
+  # Роутер MongoDB (mongos)
+  mongos:
+    container_name: mongos
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongos --configdb configReplSet/configSrv:27017 --port 27017 --bind_ip_all
+    depends_on:
+      - configSrv
+    ports:
+      - "27017:27017"
+
+  # Шард 1
+  shard1:
+    container_name: shard1
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27017 --bind_ip_all
+    volumes:
+      - shard1_data:/data/db
+    ports:
+      - "27018:27017"
+
+  # Шард 2
+  shard2:
+    container_name: shard2
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard2ReplSet --port 27017 --bind_ip_all
+    volumes:
+      - shard2_data:/data/db
+    ports:
+      - "27019:27017"
+
+  # Исходная БД для миграции данных
+  mongodb1:
+    container_name: mongodb1
+    image: dh-mirror.gitverse.ru/mongo:latest
+    volumes:
+      - mongodb1_data_container:/data/db
+    ports:
+      - "27020:27017"
+
+  # Приложение
+  pymongo_api:
+    container_name: pymongo_api
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - mongos
+      - shard1
+      - shard2
+    ports:
+      - 8080:8080
+    environment:
+      MONGODB_URL: "mongodb://mongos:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+
+volumes:
+  configSrv_data:
+  shard1_data:
+  shard2_data:
+  mongodb1_data_container:
